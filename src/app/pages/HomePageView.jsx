@@ -6,7 +6,7 @@ import { useLang } from "../translations";
 export default function HomePage({ points = 750, cups = 54, totalEarned = 1350 }) {
   const t = useLang();
   return (
-    <div className="h-full w-full px-4 md:px-8 pt-20 pb-24 md:pb-28 flex flex-col gap-4 md:gap-5 text-white box-border max-w-[1280px] mx-auto overflow-hidden">
+    <div className="h-full w-full px-8 xl:px-16 pt-24 pb-28 flex flex-col gap-5 text-white box-border max-w-[1600px] mx-auto overflow-hidden">
       <CurrentBalanceHeader points={points} />
 
       <div className="flex-1 flex flex-row gap-3 md:gap-5 min-h-0">

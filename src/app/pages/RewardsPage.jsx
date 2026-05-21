@@ -67,7 +67,7 @@ export default function RewardsPage({ points = 750, onClaim }) {
     .map(r => ({ ...r, available: points >= r.points, claimed: claimedIds.includes(r.id) }));
 
   return (
-    <div className="h-full w-full flex flex-col text-white max-w-[1400px] mx-auto pt-20 pb-24 md:pb-28 px-4 md:px-8 gap-2 overflow-hidden">
+    <div className="h-full w-full flex flex-col text-white pt-24 pb-28 px-8 xl:px-16 gap-3 max-w-[1600px] mx-auto overflow-hidden">
       <CurrentBalanceHeader points={points} />
 
       <div className="flex-none flex p-1.5 mx-auto bg-white/5 backdrop-blur-xl border border-white/10 rounded-full shadow-inner w-max">

@@ -112,14 +112,14 @@ export default function Layout() {
           <div className="absolute inset-0 opacity-[0.06] mix-blend-overlay bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
         </div>
 
-        <header className="absolute top-0 left-0 right-0 z-20 px-4 md:px-8 py-4 flex items-center justify-between">
+        <header className="absolute top-0 left-0 right-0 z-20 px-8 xl:px-16 py-5 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <h1 className="font-['Tilt_Warp',sans-serif] text-3xl tracking-tight text-white">
+            <h1 className="font-['Tilt_Warp',sans-serif] text-3xl xl:text-4xl tracking-tight text-white">
               {t.appName}
             </h1>
           </div>
-          <div className="flex items-center gap-3">
-            <button onClick={() => setLang(l => l === "en" ? "da" : "en")} className="w-8 h-6 flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setLang(l => l === "en" ? "da" : "en")} className="w-9 h-7 flex-shrink-0">
               {lang === "en" ? (
                 <svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg" className="w-full h-full rounded-sm">
                   <rect width="60" height="40" fill="#012169"/>
@@ -139,9 +139,9 @@ export default function Layout() {
             <div className="relative">
               <button
                 onClick={() => setShowBasket(v => !v)}
-                className="relative p-3 md:p-3.5 rounded-full bg-white/5 border border-white/10 shadow-sm"
+                className="relative p-3 xl:p-4 rounded-full bg-white/5 border border-white/10 shadow-sm"
               >
-                <ShoppingBasket className="w-5 h-5 md:w-6 md:h-6 text-white/80" />
+                <ShoppingBasket className="w-5 h-5 xl:w-6 xl:h-6 text-white/80" />
                 {claimedItems.length > 0 && (
                   <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-[#fd7727] rounded-full text-[9px] font-bold text-white flex items-center justify-center shadow-[0_0_10px_rgba(253,119,39,0.55)]">
                     {claimedItems.length}
@@ -149,7 +149,7 @@ export default function Layout() {
                 )}
               </button>
               {showBasket && (
-                <div className="absolute top-14 right-0 w-64 bg-[#2f3034] backdrop-blur-3xl border border-white/20 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] z-50 overflow-hidden">
+                <div className="absolute top-14 right-0 w-72 bg-[#2f3034] backdrop-blur-3xl border border-white/20 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] z-50 overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
                     <span className="font-['Geist',sans-serif] text-xs uppercase tracking-widest text-white/60">{t.shoppingCart}</span>
                     <button onClick={() => setShowBasket(false)}>
@@ -179,7 +179,7 @@ export default function Layout() {
                 </div>
               )}
             </div>
-            <div className="font-['Geist',sans-serif] text-base md:text-lg text-white/80 px-6 py-2.5 md:px-8 md:py-3 bg-white/5 rounded-full border border-white/10 backdrop-blur-md shadow-sm">
+            <div className="font-['Geist',sans-serif] text-base xl:text-lg text-white/80 px-6 py-2.5 xl:px-8 xl:py-3 bg-white/5 rounded-full border border-white/10 backdrop-blur-md shadow-sm">
               {t.helloUser}
             </div>
           </div>
@@ -236,8 +236,8 @@ export default function Layout() {
           </div>
         </main>
 
-        <div className="absolute top-24 right-[-1rem] z-50 pointer-events-none">
-          <div className="relative w-64 h-64 flex-shrink-0 z-10">
+        <div className="absolute top-24 right-4 xl:right-10 z-50 pointer-events-none">
+          <div className="relative w-56 h-56 xl:w-72 xl:h-72 flex-shrink-0 z-10">
             <div className="absolute inset-0 bg-[#26448c] rounded-full filter blur-[50px] opacity-40 animate-pulse" />
             <img
               src={mascot}
@@ -247,38 +247,38 @@ export default function Layout() {
           </div>
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 pb-2 md:pb-3 pt-2 px-4 md:px-8 z-50">
-          <nav className="relative bg-[#26448c]/60 backdrop-blur-3xl rounded-[2rem] max-w-3xl mx-auto">
-            <div className="flex justify-around items-center h-[64px] md:h-[76px] px-2 relative z-10">
+        <div className="absolute bottom-0 left-0 right-0 pb-3 pt-2 px-8 xl:px-16 z-50">
+          <nav className="relative bg-[#26448c]/60 backdrop-blur-3xl rounded-[2rem] max-w-4xl mx-auto">
+            <div className="flex justify-around items-center h-[72px] xl:h-[84px] px-4 relative z-10">
               <button onClick={() => scrollToSection(0)} className="relative flex flex-col items-center justify-center flex-1 h-full group">
-                {activeIndex === 0 && <div className="absolute inset-0 bg-white/10 rounded-2xl m-1 md:m-2 transition-all duration-500 shadow-inner" />}
-                <Home className={`w-6 h-6 md:w-7 md:h-7 mb-0.5 md:mb-1 transition-all duration-300 ${activeIndex === 0 ? "text-[#fd7727] scale-110" : "text-white/50"}`} />
-                <span className={`text-[8px] md:text-[10px] font-bold tracking-widest uppercase transition-colors ${activeIndex === 0 ? "text-[#fd7727]" : "text-white/50"}`}>{t.navHome}</span>
+                {activeIndex === 0 && <div className="absolute inset-0 bg-white/10 rounded-2xl m-1.5 transition-all duration-500 shadow-inner" />}
+                <Home className={`w-6 h-6 xl:w-7 xl:h-7 mb-1 transition-all duration-300 ${activeIndex === 0 ? "text-[#fd7727] scale-110" : "text-white/50"}`} />
+                <span className={`text-[9px] xl:text-[11px] font-bold tracking-widest uppercase transition-colors ${activeIndex === 0 ? "text-[#fd7727]" : "text-white/50"}`}>{t.navHome}</span>
               </button>
 
               <button onClick={() => scrollToSection(1)} className="relative flex flex-col items-center justify-center flex-1 h-full group">
-                {activeIndex === 1 && <div className="absolute inset-0 bg-white/10 rounded-2xl m-1 md:m-2 transition-all duration-500 shadow-inner" />}
-                <Gift className={`w-6 h-6 md:w-7 md:h-7 mb-0.5 md:mb-1 transition-all duration-300 ${activeIndex === 1 ? "text-[#fd7727] scale-110" : "text-white/50"}`} />
-                <span className={`text-[8px] md:text-[10px] font-bold tracking-widest uppercase transition-colors ${activeIndex === 1 ? "text-[#fd7727]" : "text-white/50"}`}>{t.navRewards}</span>
+                {activeIndex === 1 && <div className="absolute inset-0 bg-white/10 rounded-2xl m-1.5 transition-all duration-500 shadow-inner" />}
+                <Gift className={`w-6 h-6 xl:w-7 xl:h-7 mb-1 transition-all duration-300 ${activeIndex === 1 ? "text-[#fd7727] scale-110" : "text-white/50"}`} />
+                <span className={`text-[9px] xl:text-[11px] font-bold tracking-widest uppercase transition-colors ${activeIndex === 1 ? "text-[#fd7727]" : "text-white/50"}`}>{t.navRewards}</span>
               </button>
 
               <div className="relative flex flex-col items-center justify-center flex-1 h-full group">
-                <button onClick={() => scrollToSection(2)} className="relative flex flex-col items-center justify-center w-12 h-12 md:w-14 md:h-14 rounded-full transition-all duration-300 bg-white/10 mx-auto">
+                <button onClick={() => scrollToSection(2)} className="relative flex flex-col items-center justify-center w-13 h-13 xl:w-16 xl:h-16 rounded-full transition-all duration-300 bg-white/10 mx-auto" style={{width: '3.25rem', height: '3.25rem'}}>
                   {activeIndex === 2 && <div className="absolute inset-0 bg-white/10 rounded-full shadow-inner scale-110 transition-all duration-500" />}
-                  <QrCode className={`relative z-10 w-6 h-6 md:w-7 md:h-7 transition-all duration-300 ${activeIndex === 2 ? 'text-[#fd7727] scale-110' : 'text-white/80'}`} />
+                  <QrCode className={`relative z-10 w-6 h-6 xl:w-7 xl:h-7 transition-all duration-300 ${activeIndex === 2 ? 'text-[#fd7727] scale-110' : 'text-white/80'}`} />
                 </button>
               </div>
 
               <button onClick={() => scrollToSection(3)} className="relative flex flex-col items-center justify-center flex-1 h-full group">
-                {activeIndex === 3 && <div className="absolute inset-0 bg-white/10 rounded-2xl m-1 md:m-2 transition-all duration-500 shadow-inner" />}
-                <Map className={`w-6 h-6 md:w-7 md:h-7 mb-0.5 md:mb-1 transition-all duration-300 ${activeIndex === 3 ? "text-[#fd7727] scale-110" : "text-white/50"}`} />
-                <span className={`text-[8px] md:text-[10px] font-bold tracking-widest uppercase transition-colors ${activeIndex === 3 ? "text-[#fd7727]" : "text-white/50"}`}>{t.navMap}</span>
+                {activeIndex === 3 && <div className="absolute inset-0 bg-white/10 rounded-2xl m-1.5 transition-all duration-500 shadow-inner" />}
+                <Map className={`w-6 h-6 xl:w-7 xl:h-7 mb-1 transition-all duration-300 ${activeIndex === 3 ? "text-[#fd7727] scale-110" : "text-white/50"}`} />
+                <span className={`text-[9px] xl:text-[11px] font-bold tracking-widest uppercase transition-colors ${activeIndex === 3 ? "text-[#fd7727]" : "text-white/50"}`}>{t.navMap}</span>
               </button>
 
               <button onClick={() => scrollToSection(4)} className="relative flex flex-col items-center justify-center flex-1 h-full group">
-                {activeIndex === 4 && <div className="absolute inset-0 bg-white/10 rounded-2xl m-1 md:m-2 transition-all duration-500 shadow-inner" />}
-                <User className={`w-6 h-6 md:w-7 md:h-7 mb-0.5 md:mb-1 transition-all duration-300 ${activeIndex === 4 ? "text-[#fd7727] scale-110" : "text-white/50"}`} />
-                <span className={`text-[8px] md:text-[10px] font-bold tracking-widest uppercase transition-colors ${activeIndex === 4 ? "text-[#fd7727]" : "text-white/50"}`}>{t.navProfile}</span>
+                {activeIndex === 4 && <div className="absolute inset-0 bg-white/10 rounded-2xl m-1.5 transition-all duration-500 shadow-inner" />}
+                <User className={`w-6 h-6 xl:w-7 xl:h-7 mb-1 transition-all duration-300 ${activeIndex === 4 ? "text-[#fd7727] scale-110" : "text-white/50"}`} />
+                <span className={`text-[9px] xl:text-[11px] font-bold tracking-widest uppercase transition-colors ${activeIndex === 4 ? "text-[#fd7727]" : "text-white/50"}`}>{t.navProfile}</span>
               </button>
             </div>
           </nav>

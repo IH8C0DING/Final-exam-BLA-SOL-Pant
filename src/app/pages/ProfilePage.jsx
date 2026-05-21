@@ -4,7 +4,7 @@ import { useLang } from "../translations";
 export default function ProfilePage() {
   const t = useLang();
   return (
-    <div className="h-full w-full px-8 pt-20 pb-24 md:pb-28 flex flex-col gap-4 text-white box-border max-w-[1400px] mx-auto overflow-hidden">
+    <div className="h-full w-full px-8 xl:px-16 pt-24 pb-28 flex flex-col gap-4 text-white box-border max-w-[1600px] mx-auto overflow-hidden">
       <div className="flex-none flex gap-4">
         <div className="flex-none w-[280px] relative flex flex-col items-center justify-center py-6 px-4 rounded-[2rem] bg-white/5 border border-white/10 backdrop-blur-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.5)] overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-[#96d4e5]/20 via-transparent to-[#26448c]/20 pointer-events-none" />

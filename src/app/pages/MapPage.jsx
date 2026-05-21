@@ -4,7 +4,7 @@ import MapImg from "../../assets/radar.png";
 export default function MapPage() {
   const t = useLang();
   return (
-    <div className="h-full w-full px-8 pt-20 pb-24 md:pb-28 flex flex-col gap-6 text-white box-border max-w-[1400px] mx-auto overflow-hidden">
+    <div className="h-full w-full px-8 xl:px-16 pt-24 pb-28 flex flex-col gap-6 text-white box-border max-w-[1600px] mx-auto overflow-hidden">
       <div className="flex-none px-4">
         <h2 className="font-['Tilt_Warp',sans-serif] text-5xl text-transparent bg-clip-text bg-gradient-to-r from-white to-white/60 mb-2 drop-shadow-md">
           {t.radar}

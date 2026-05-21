@@ -7,7 +7,7 @@ export default function ScanPage({ points, onScan }) {
   const fillPercentage = Math.min(100, ((points % 1000) / 1000) * 100);
 
   return (
-    <div className="h-full w-full px-4 md:px-8 pt-16 pb-24 md:pb-28 flex flex-col gap-1 text-white box-border max-w-[1400px] mx-auto items-center relative">
+    <div className="h-full w-full px-8 xl:px-16 pt-20 pb-28 flex flex-col gap-1 text-white box-border max-w-[1600px] mx-auto items-center relative">
       <div className="relative z-30 text-center flex-none -mt-4 mb-5">
         <h2 className="font-['Tilt_Warp',sans-serif] text-4xl md:text-5xl text-white mb-2">
           {t.scanYourCups}
