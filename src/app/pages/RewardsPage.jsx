@@ -67,10 +67,10 @@ export default function RewardsPage({ points = 750, onClaim }) {
     .map(r => ({ ...r, available: points >= r.points, claimed: claimedIds.includes(r.id) }));
 
   return (
-    <div className="h-full w-full flex flex-col text-white pt-24 pb-28 px-8 xl:px-16 gap-3 max-w-[1600px] mx-auto overflow-hidden">
+    <div className="h-full w-full flex flex-col text-white pt-30 md:pt-32 pb-28 px-8 xl:px-16 gap-3 overflow-hidden">
       <CurrentBalanceHeader points={points} />
 
-      <div className="flex-none flex p-1.5 mx-auto bg-white/5 backdrop-blur-xl border border-white/10 rounded-full shadow-inner w-max">
+      <div className="flex-none flex p-1.5 mx-auto bg-white/5 backdrop-blur-xl border border-white/10 rounded-full shadow-inner w-max mt-3">
         <button
           onClick={() => switchTab("repeatable")}
           className={`py-2 px-6 md:py-3 md:px-8 rounded-full font-['Geist',sans-serif] text-[10px] md:text-xs font-semibold uppercase tracking-widest transition-all duration-300 ${
@@ -110,12 +110,12 @@ export default function RewardsPage({ points = 750, onClaim }) {
         ))}
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-row gap-3 items-stretch justify-start">
+      <div className="flex-1 min-h-0 flex flex-nowrap justify-start items-start gap-4 overflow-hidden pt-5 md:pt-7">
         {filtered.map(reward => {
           const tempClaimed = temporaryClaimedIds.includes(reward.id);
           const isDimmed = !reward.available || reward.claimed;
           return (
-            <div key={reward.id} className="flex-1 min-w-0 max-w-[calc(20%_-_0.6rem)] h-full">
+            <div key={reward.id} className="flex-none min-w-0 aspect-[3/4]" style={{ width: "clamp(220px, calc((100% - 64px) / 5), 280px)" }}>
               <div className={`w-full h-full bg-[#26448c]/90 backdrop-blur-2xl rounded-[1.5rem] md:rounded-[2rem] border p-4 md:p-5 flex flex-col shadow-2xl relative overflow-hidden ${
                 reward.available && !reward.claimed ? "border-[#96d4e5]/40" : "border-white/10"
               }`}>

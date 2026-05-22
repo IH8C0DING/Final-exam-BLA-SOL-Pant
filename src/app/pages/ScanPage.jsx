@@ -7,8 +7,8 @@ export default function ScanPage({ points, onScan }) {
   const fillPercentage = Math.min(100, ((points % 1000) / 1000) * 100);
 
   return (
-    <div className="h-full w-full px-8 xl:px-16 pt-20 pb-28 flex flex-col gap-1 text-white box-border max-w-[1600px] mx-auto items-center relative">
-      <div className="relative z-30 text-center flex-none -mt-4 mb-5">
+    <div className="h-full w-full px-8 xl:px-16 pt-24 md:pt-28 pb-28 flex flex-col gap-1 text-white box-border max-w-[1600px] mx-auto items-center relative">
+      <div className="relative z-30 text-center flex-none mt-2 md:mt-3 mb-6 md:mb-7">
         <h2 className="font-['Tilt_Warp',sans-serif] text-4xl md:text-5xl text-white mb-2">
           {t.scanYourCups}
         </h2>
@@ -17,9 +17,9 @@ export default function ScanPage({ points, onScan }) {
         </p>
       </div>
 
-      <div className="flex-1 min-h-0 w-full max-w-sm relative z-10 flex items-start justify-center">
+      <div className="flex-1 min-h-0 w-full max-w-md relative z-10 flex items-start justify-center pt-0 md:pt-1">
         <div className="absolute inset-0 bg-[#26448c] rounded-full filter blur-[100px] opacity-20 animate-pulse pointer-events-none" />
-        <div className="relative w-full max-w-[260px] md:max-w-[320px] aspect-[0.8] z-10 mx-auto">
+        <div className="relative w-full max-w-[360px] md:max-w-[440px] aspect-[0.8] z-10 mx-auto">
           <CupFill fillPercentage={fillPercentage} highlightFilledMarkers />
 
           <div className="absolute -right-20 md:-right-24 top-1/2 -translate-y-1/2 z-50 flex flex-col items-center gap-3">

@@ -112,7 +112,7 @@ export default function Layout() {
           <div className="absolute inset-0 opacity-[0.06] mix-blend-overlay bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
         </div>
 
-        <header className="absolute top-0 left-0 right-0 z-20 px-8 xl:px-16 py-5 flex items-center justify-between">
+        <header className="absolute top-0 left-0 right-0 z-20 px-8 xl:px-16 pt-7 pb-5 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h1 className="font-['Tilt_Warp',sans-serif] text-3xl xl:text-4xl tracking-tight text-white">
               {t.appName}
@@ -236,7 +236,7 @@ export default function Layout() {
           </div>
         </main>
 
-        <div className="absolute top-24 right-4 xl:right-10 z-50 pointer-events-none">
+        {activeIndex !== 1 && <div className="absolute top-[20vh] right-0 xl:right-4 z-50 pointer-events-none">
           <div className="relative w-56 h-56 xl:w-72 xl:h-72 flex-shrink-0 z-10">
             <div className="absolute inset-0 bg-[#26448c] rounded-full filter blur-[50px] opacity-40 animate-pulse" />
             <img
@@ -245,7 +245,7 @@ export default function Layout() {
               className={`w-full h-full object-contain relative z-20 drop-shadow-[0_20px_30px_rgba(0,0,0,0.6)] transition-transform duration-[2000ms] ${showNotification ? 'rotate-[-5deg] scale-110' : 'rotate-12 scale-100'}`}
             />
           </div>
-        </div>
+        </div>}
 
         <div className="absolute bottom-0 left-0 right-0 pb-3 pt-2 px-8 xl:px-16 z-50">
           <nav className="relative bg-[#26448c]/60 backdrop-blur-3xl rounded-[2rem] max-w-4xl mx-auto">

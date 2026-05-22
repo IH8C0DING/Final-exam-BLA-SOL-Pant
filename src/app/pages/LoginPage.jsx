@@ -34,7 +34,7 @@ export default function LoginPage({ onLogin }) {
           </div>
         </div>
 
-        <h2 className="font-['Tilt_Warp',sans-serif] text-3xl md:text-5xl text-white mb-6">
+        <h2 className="font-['Tilt_Warp',sans-serif] text-3xl md:text-5xl text-white mb-6 mt-6">
           {t.scanWristband}
         </h2>
       </div>
