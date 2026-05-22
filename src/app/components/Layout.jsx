@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Home, Gift, Map, User, QrCode, ShoppingBasket, X } from "lucide-react";
 import mascot from "../../assets/mascot.png";
+import ticketImg from "../../assets/ticket.png";
 import { translations, LangProvider } from "../translations";
 
 import HomePageView from "../pages/HomePageView";
@@ -28,10 +29,33 @@ export default function Layout() {
   const [cups, setCups] = useState(0);
   const [claimedItems, setClaimedItems] = useState([]);
   const [showBasket, setShowBasket] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [printingDone, setPrintingDone] = useState(false);
+  const receiptItemsRef = useRef([]);
+  const showBasketRef = useRef(false);
+  const showReceiptRef = useRef(false);
+  const childModalRef = useRef(false);
+  const onChildModalChange = (open) => { childModalRef.current = open; };
   const [lang, setLang] = useState("en");
 
   const langRef = useRef(lang);
   useEffect(() => { langRef.current = lang; }, [lang]);
+
+  const handleClaimReceipt = () => {
+    receiptItemsRef.current = [...claimedItems];
+    showBasketRef.current = false;
+    setShowBasket(false);
+    setPrintingDone(false);
+    showReceiptRef.current = true;
+    setShowReceipt(true);
+    setTimeout(() => setPrintingDone(true), 3500);
+  };
+
+  const handleReceiptClose = () => {
+    showReceiptRef.current = false;
+    setShowReceipt(false);
+    setClaimedItems([]);
+  };
 
   const t = translations[lang];
 
@@ -42,6 +66,7 @@ export default function Layout() {
     let idleTimeout;
 
     const handleIdle = () => {
+      if (showBasketRef.current || showReceiptRef.current || childModalRef.current) return;
       setIsLoggedIn(false);
       if (scrollContainerRef.current) {
         scrollContainerRef.current.scrollTo({ left: 0, behavior: "smooth" });
@@ -138,7 +163,7 @@ export default function Layout() {
             </button>
             <div className="relative">
               <button
-                onClick={() => setShowBasket(v => !v)}
+                onClick={() => { const next = !showBasket; showBasketRef.current = next; setShowBasket(next); }}
                 className="relative p-3 xl:p-4 rounded-full bg-white/5 border border-white/10 shadow-sm"
               >
                 <ShoppingBasket className="w-5 h-5 xl:w-6 xl:h-6 text-white/80" />
@@ -149,10 +174,12 @@ export default function Layout() {
                 )}
               </button>
               {showBasket && (
+                <>
+                <div className="fixed inset-0 z-40" onClick={() => { showBasketRef.current = false; setShowBasket(false); }} />
                 <div className="absolute top-14 right-0 w-72 bg-[#2f3034] backdrop-blur-3xl border border-white/20 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] z-50 overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
                     <span className="font-['Geist',sans-serif] text-xs uppercase tracking-widest text-white/60">{t.shoppingCart}</span>
-                    <button onClick={() => setShowBasket(false)}>
+                    <button onClick={() => { showBasketRef.current = false; setShowBasket(false); }}>
                       <X className="w-4 h-4 text-white/40 hover:text-white/80" />
                     </button>
                   </div>
@@ -170,13 +197,19 @@ export default function Layout() {
                   )}
                   <div className="px-4 py-3 border-t border-white/10">
                     <button
-                      onClick={() => { setClaimedItems([]); setShowBasket(false); }}
-                      className="w-full py-2 rounded-full bg-[#fd7727] text-white font-['Geist',sans-serif] text-xs font-bold uppercase tracking-widest"
+                      onClick={claimedItems.length > 0 ? handleClaimReceipt : undefined}
+                      disabled={claimedItems.length === 0}
+                      className={`w-full py-2 rounded-full font-['Geist',sans-serif] text-xs font-bold uppercase tracking-widest transition-all ${
+                        claimedItems.length > 0
+                          ? "bg-[#fd7727] text-white"
+                          : "bg-white/5 text-white/30 border-2 border-dashed border-white/20 cursor-not-allowed"
+                      }`}
                     >
                       {t.claim}
                     </button>
                   </div>
                 </div>
+                </>
               )}
             </div>
             <div className="font-['Geist',sans-serif] text-base xl:text-lg text-white/80 px-6 py-2.5 xl:px-8 xl:py-3 bg-white/5 rounded-full border border-white/10 backdrop-blur-md shadow-sm">
@@ -197,6 +230,7 @@ export default function Layout() {
             <div className="w-full flex-none h-full snap-center">
               <RewardsPage
                 points={points}
+                onModalChange={onChildModalChange}
                 onClaim={(cost, id, name) => {
                   setPoints(p => Math.max(0, p - cost));
                   setClaimedItems(prev => [...prev, { name, points: cost }]);
@@ -228,24 +262,26 @@ export default function Layout() {
               />
             </div>
             <div className="w-full flex-none h-full snap-center">
-              <MapPage />
+              <MapPage isActive={activeIndex === 3} />
             </div>
             <div className="w-full flex-none h-full snap-center">
-              <ProfilePage />
+              <ProfilePage onModalChange={onChildModalChange} />
             </div>
           </div>
         </main>
 
-        {activeIndex !== 1 && <div className="absolute top-[20vh] right-0 xl:right-4 z-50 pointer-events-none">
-          <div className="relative w-56 h-56 xl:w-72 xl:h-72 flex-shrink-0 z-10">
-            <div className="absolute inset-0 bg-[#26448c] rounded-full filter blur-[50px] opacity-40 animate-pulse" />
-            <img
-              src={mascot}
-              alt="Sunny Mascot"
-              className={`w-full h-full object-contain relative z-20 drop-shadow-[0_20px_30px_rgba(0,0,0,0.6)] transition-transform duration-[2000ms] ${showNotification ? 'rotate-[-5deg] scale-110' : 'rotate-12 scale-100'}`}
-            />
+        {activeIndex !== 1 && (
+          <div className="absolute top-[20vh] right-0 xl:right-4 z-50 pointer-events-none">
+            <div className="relative w-56 h-56 xl:w-72 xl:h-72 flex-shrink-0 z-10">
+              <div className="absolute inset-0 bg-[#26448c] rounded-full filter blur-[50px] opacity-40 animate-pulse" />
+              <img
+                src={mascot}
+                alt="Sunny Mascot"
+                className={`w-full h-full object-contain relative z-20 drop-shadow-[0_20px_30px_rgba(0,0,0,0.6)] transition-transform duration-[2000ms] ${showNotification ? 'rotate-[-5deg] scale-110' : 'rotate-12 scale-100'}`}
+              />
+            </div>
           </div>
-        </div>}
+        )}
 
         <div className="absolute bottom-0 left-0 right-0 pb-3 pt-2 px-8 xl:px-16 z-50">
           <nav className="relative bg-[#26448c]/60 backdrop-blur-3xl rounded-[2rem] max-w-4xl mx-auto">
@@ -284,6 +320,72 @@ export default function Layout() {
           </nav>
         </div>
 
+        {showReceipt && (
+          <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-md flex items-end justify-center" onClick={handleReceiptClose}>
+            <div className="w-full max-w-sm relative" onClick={e => e.stopPropagation()} style={{ animation: 'receiptSlideUp 0.5s cubic-bezier(0.34,1.4,0.64,1) forwards' }}>
+              <div className="relative bg-[#f0ede8] text-[#1a1a2e] shadow-[0_-20px_60px_rgba(0,0,0,0.5)]"
+                style={{ clipPath: 'polygon(0 12px,2% 0,4% 12px,6% 0,8% 12px,10% 0,12% 12px,14% 0,16% 12px,18% 0,20% 12px,22% 0,24% 12px,26% 0,28% 12px,30% 0,32% 12px,34% 0,36% 12px,38% 0,40% 12px,42% 0,44% 12px,46% 0,48% 12px,50% 0,52% 12px,54% 0,56% 12px,58% 0,60% 12px,62% 0,64% 12px,66% 0,68% 12px,70% 0,72% 12px,74% 0,76% 12px,78% 0,80% 12px,82% 0,84% 12px,86% 0,88% 12px,90% 0,92% 12px,94% 0,96% 12px,98% 0,100% 12px,100% 100%,0 100%)' }}
+              >
+                <div className="px-7 pt-10 pb-8">
+                  <div className="text-center mb-4">
+                    <div className="font-['Tilt_Warp',sans-serif] text-2xl text-[#26448c] tracking-tight">BLÅ SOL PANT</div>
+                    <div className="font-['Geist',sans-serif] text-[10px] uppercase tracking-[0.2em] text-[#26448c]/60 mt-0.5">Bottle Return System</div>
+                  </div>
+
+                  <div className="flex justify-center my-3">
+                    <img src={ticketImg} alt="Ticket" className="w-32 h-32 object-contain" />
+                  </div>
+
+                  <div className="border-t-2 border-dashed border-gray-300 my-4" />
+
+                  <div className="flex flex-col gap-2 mb-4">
+                    {Object.values(
+                      receiptItemsRef.current.reduce((acc, item) => {
+                        if (acc[item.name]) {
+                          acc[item.name].count++;
+                          acc[item.name].total += item.points;
+                        } else {
+                          acc[item.name] = { name: item.name, points: item.points, count: 1, total: item.points };
+                        }
+                        return acc;
+                      }, {})
+                    ).map((line, i) => (
+                      <div key={i} className="flex items-center justify-between">
+                        <span className="font-['Geist',sans-serif] text-sm text-gray-700">
+                          {line.name}{line.count > 1 && <span className="text-[#26448c] font-bold ml-1">x{line.count}</span>}
+                        </span>
+                        <span className="font-['Tilt_Warp',sans-serif] text-sm text-[#fd7727]">-{line.total} pts</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="border-t-2 border-dashed border-gray-300 mb-4" />
+
+                  <div className="flex justify-between mb-5">
+                    <span className="font-['Geist',sans-serif] text-xs uppercase tracking-widest text-gray-500">Total redeemed</span>
+                    <span className="font-['Tilt_Warp',sans-serif] text-sm text-[#26448c]">
+                      -{receiptItemsRef.current.reduce((s, i) => s + i.points, 0)} pts
+                    </span>
+                  </div>
+
+                  <p className="font-['Tilt_Warp',sans-serif] text-sm text-center text-[#26448c]/70 mb-5">
+                    Thank you for making the festival cleaner :)
+                  </p>
+
+                  <div className="text-center">
+                    <button
+                      onClick={handleReceiptClose}
+                      className="px-8 py-2.5 rounded-full bg-[#26448c] text-white font-['Geist',sans-serif] text-xs font-bold uppercase tracking-widest shadow-lg"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <style>{`
           @keyframes float1 {
             0%   { transform: translate(0, 0) scale(1); }
@@ -311,6 +413,22 @@ export default function Layout() {
           }
           .hide-scrollbar::-webkit-scrollbar { display: none; }
           .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+          @keyframes printProgress {
+            from { width: 0%; }
+            to   { width: 100%; }
+          }
+          @keyframes waveRotate {
+            from { transform: rotate(0deg); }
+            to   { transform: rotate(360deg); }
+          }
+          @keyframes printDot {
+            0%, 100% { opacity: 0.2; transform: translateY(0); }
+            50%       { opacity: 1;   transform: translateY(-3px); }
+          }
+          @keyframes receiptSlideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to   { transform: translateY(0);    opacity: 1; }
+          }
         `}</style>
       </div>
     </LangProvider>

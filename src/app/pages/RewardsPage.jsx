@@ -37,12 +37,13 @@ const CATEGORIES = {
   "one-time":   ["experience", "ticket"],
 };
 
-export default function RewardsPage({ points = 750, onClaim }) {
+export default function RewardsPage({ points = 750, onClaim, onModalChange }) {
   const t = useLang();
   const [activeTab, setActiveTab] = useState("repeatable");
   const [activeCategory, setActiveCategory] = useState("drinks");
   const [claimedIds, setClaimedIds] = useState([]);
   const [temporaryClaimedIds, setTemporaryClaimedIds] = useState([]);
+  const [confirmReward, setConfirmReward] = useState(null);
 
   const switchTab = (tab) => {
     setActiveTab(tab);
@@ -141,7 +142,7 @@ export default function RewardsPage({ points = 750, onClaim }) {
                 </div>
 
                 <button
-                  onClick={() => handleClaim(reward)}
+                  onClick={() => { if (reward.available && !reward.claimed && !temporaryClaimedIds.includes(reward.id)) { setConfirmReward(reward); onModalChange?.(true); } }}
                   disabled={!reward.available || reward.claimed}
                   className={`shrink-0 w-full py-2.5 md:py-3 rounded-full font-['Geist',sans-serif] text-[9px] md:text-xs font-bold uppercase tracking-widest transition-all duration-300 flex justify-center items-center ${
                     reward.claimed
@@ -160,6 +161,44 @@ export default function RewardsPage({ points = 750, onClaim }) {
           );
         })}
       </div>
+
+      {confirmReward && (
+        <div
+          className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-md flex items-center justify-center px-6"
+          onClick={() => { setConfirmReward(null); onModalChange?.(false); }}
+        >
+          <div
+            className="w-full max-w-sm relative overflow-hidden rounded-[2.5rem] bg-white/5 border border-white/10 backdrop-blur-2xl shadow-[0_30px_60px_rgba(0,0,0,0.5)] p-8 text-center"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-[#96d4e5]/15 via-transparent to-[#26448c]/20 pointer-events-none" />
+            <div className="relative z-10">
+              <div className="w-28 h-28 mx-auto mb-4 flex items-center justify-center">
+                <img src={confirmReward.img} alt={confirmReward.name} className="w-full h-full object-contain drop-shadow-xl" />
+              </div>
+              <h3 className="font-['Tilt_Warp',sans-serif] text-2xl text-white mb-1">
+                {t.rewardNames[confirmReward.name] || confirmReward.name}
+              </h3>
+              <p className="font-['Tilt_Warp',sans-serif] text-xl text-[#fd7727] mb-1">{confirmReward.points} pts</p>
+              <p className="font-['Geist',sans-serif] text-white/40 text-xs uppercase tracking-widest mb-7">Confirm to redeem</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setConfirmReward(null); onModalChange?.(false); }}
+                  className="flex-1 py-3 rounded-full bg-white/10 text-white/60 font-['Geist',sans-serif] text-xs font-bold uppercase tracking-widest border border-white/10"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { handleClaim(confirmReward); setConfirmReward(null); onModalChange?.(false); }}
+                  className="flex-1 py-3 rounded-full bg-[#fd7727] text-white font-['Geist',sans-serif] text-xs font-bold uppercase tracking-widest shadow-[0_0_20px_rgba(253,119,39,0.4)]"
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
