@@ -3,8 +3,13 @@ import CurrentBalanceHeader from "../components/CurrentBalanceHeader";
 import CupFill from "../components/CupFill";
 import { useLang } from "../translations";
 
-export default function HomePage({ points = 750, cups = 54, totalEarned = 1350 }) {
+export default function HomePage({ points = 750, cups = 54, totalEarned = 1350, cupFillPoints = points }) {
   const t = useLang();
+  const fullCupPoints = 10000;
+  const pointsPerScan = 3000;
+  const fillPercentage = Math.min(100, (cupFillPoints / fullCupPoints) * 100);
+  const scanSteps = Math.floor(cupFillPoints / pointsPerScan);
+  const cupScale = 1 + Math.min(0.08, scanSteps * 0.02);
   return (
     <div className="h-full w-full px-8 xl:px-16 pt-30 md:pt-32 pb-32 flex flex-col gap-5 text-white box-border overflow-hidden">
       <CurrentBalanceHeader points={points} />
@@ -16,7 +21,7 @@ export default function HomePage({ points = 750, cups = 54, totalEarned = 1350 }
               className="relative z-10 mx-auto aspect-[4/5]"
               style={{ height: "min(100%, 52vh)", maxWidth: "60%" }}
             >
-              <CupFill fillPercentage={Math.min(100, (points % 1000) / 10)} />
+              <CupFill fillPercentage={fillPercentage} scale={cupScale} />
             </div>
           </div>
         </div>

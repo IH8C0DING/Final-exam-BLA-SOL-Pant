@@ -1,4 +1,4 @@
-export default function CupFill({ fillPercentage, highlightFilledMarkers = false }) {
+export default function CupFill({ fillPercentage, scale = 1, highlightFilledMarkers = false }) {
   return (
     <>
       <style>{`
@@ -13,7 +13,8 @@ export default function CupFill({ fillPercentage, highlightFilledMarkers = false
         style={{
           clipPath: 'polygon(10% 0, 90% 0, 80% 100%, 20% 100%)',
           WebkitClipPath: 'polygon(10% 0, 90% 0, 80% 100%, 20% 100%)',
-          transform: 'translateZ(0)'
+          transform: `translateZ(0) scale(${scale})`,
+          transition: 'transform 900ms cubic-bezier(0.2, 0.8, 0.2, 1)'
         }}
       >
         <div className="absolute inset-0 bg-white/10 backdrop-blur-md" />

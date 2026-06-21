@@ -82,6 +82,7 @@ export default function MapPage({ isActive }) {
             src={MapImg}
             alt="Festival Map"
             draggable={false}
+            decoding="async"
             className="w-full h-full object-cover select-none"
             style={{
               transform: `translate(${pos.x}px, ${pos.y}px) scale(${zoom})`,

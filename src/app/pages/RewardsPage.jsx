@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Crown } from "lucide-react";
 import CurrentBalanceHeader from "../components/CurrentBalanceHeader";
 import { useLang } from "../translations";
@@ -37,6 +37,8 @@ const CATEGORIES = {
   "one-time":   ["experience", "ticket"],
 };
 
+const REWARD_IMAGES = ALL_REWARDS.map((reward) => reward.img).filter(Boolean);
+
 export default function RewardsPage({ points = 750, onClaim, onModalChange }) {
   const t = useLang();
   const [activeTab, setActiveTab] = useState("repeatable");
@@ -44,6 +46,21 @@ export default function RewardsPage({ points = 750, onClaim, onModalChange }) {
   const [claimedIds, setClaimedIds] = useState([]);
   const [temporaryClaimedIds, setTemporaryClaimedIds] = useState([]);
   const [confirmReward, setConfirmReward] = useState(null);
+
+  useEffect(() => {
+    const cache = [];
+
+    for (const src of REWARD_IMAGES) {
+      const image = new Image();
+      image.decoding = "async";
+      image.src = src;
+      cache.push(image);
+    }
+
+    return () => {
+      cache.length = 0;
+    };
+  }, []);
 
   const switchTab = (tab) => {
     setActiveTab(tab);
@@ -123,7 +140,14 @@ export default function RewardsPage({ points = 750, onClaim, onModalChange }) {
 
                 <div className="flex-1 min-h-0 rounded-xl md:rounded-2xl flex items-center justify-center bg-black/60 border border-white/10 mb-4">
                   {reward.img ? (
-                    <img src={reward.img} alt={t.rewardNames[reward.name] || reward.name} className={`w-32 h-32 md:w-40 md:h-40 object-contain drop-shadow-lg ${isDimmed ? "opacity-30" : "opacity-100"}`} />
+                    <img
+                      src={reward.img}
+                      alt={t.rewardNames[reward.name] || reward.name}
+                      loading="eager"
+                      decoding="async"
+                      fetchPriority="high"
+                      className={`w-32 h-32 md:w-40 md:h-40 object-contain drop-shadow-lg ${isDimmed ? "opacity-30" : "opacity-100"}`}
+                    />
                   ) : (
                     <reward.icon className={`w-12 h-12 md:w-16 md:h-16 ${isDimmed ? "text-white/30" : reward.iconColor} drop-shadow-lg`} />
                   )}
@@ -174,7 +198,7 @@ export default function RewardsPage({ points = 750, onClaim, onModalChange }) {
             <div className="absolute inset-0 bg-gradient-to-br from-[#96d4e5]/15 via-transparent to-[#26448c]/20 pointer-events-none" />
             <div className="relative z-10">
               <div className="w-28 h-28 mx-auto mb-4 flex items-center justify-center">
-                <img src={confirmReward.img} alt={confirmReward.name} className="w-full h-full object-contain drop-shadow-xl" />
+                <img src={confirmReward.img} alt={confirmReward.name} loading="eager" decoding="async" className="w-full h-full object-contain drop-shadow-xl" />
               </div>
               <h3 className="font-['Tilt_Warp',sans-serif] text-2xl text-white mb-1">
                 {t.rewardNames[confirmReward.name] || confirmReward.name}

@@ -1,2 +1,46 @@
 @import './tailwind.css';
 @import './theme.css';
+
+.custom-cursor-hide,
+.custom-cursor-hide * {
+	cursor: none !important;
+}
+
+@keyframes receiptSlideUp {
+	0% {
+		opacity: 0;
+		transform: translateY(40px);
+	}
+
+	100% {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes receiptPrintOut {
+	0% {
+		opacity: 0;
+		transform: translateY(52px);
+	}
+
+	65% {
+		opacity: 1;
+		transform: translateY(0);
+	}
+
+	100% {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.receipt-slide-up {
+	animation: receiptSlideUp 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.receipt-print {
+	transform-origin: bottom center;
+	will-change: transform, opacity;
+	animation: receiptPrintOut 2.2s cubic-bezier(0.16, 0.9, 0.2, 1) forwards;
+}

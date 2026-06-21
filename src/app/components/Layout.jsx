@@ -1,9 +1,14 @@
-import { useState, useEffect, useRef } from "react";
-import { Home, Gift, Map, User, QrCode, ShoppingBasket, X } from "lucide-react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { Home, Gift, Map, User, QrCode, ShoppingBasket, X, Camera } from "lucide-react";
+import { ref, set, remove, onValue } from "firebase/database";
+import jsQR from "jsqr";
 import mascot from "../../assets/mascot.png";
 import ticketImg from "../../assets/ticket.png";
+import scanSound from "../../assets/Scanner sound effect.mp3";
 import { translations, LangProvider } from "../translations";
+import { db } from "../../firebase";
 
+import AnimatedGradientBackground from "./AnimatedGradientBackground";
 import HomePageView from "../pages/HomePageView";
 import RewardsPage from "../pages/RewardsPage";
 import MapPage from "../pages/MapPage";
@@ -11,21 +16,373 @@ import ProfilePage from "../pages/ProfilePage";
 import LoginPage from "../pages/LoginPage";
 import ScanPage from "../pages/ScanPage";
 
-export default function Layout() {
-  const scrollContainerRef = useRef(null);
-  const [activeIndex, setActiveIndex] = useState(0);
+function setLoginUnlockedDom(unlocked) {
+  if (typeof document === "undefined") return;
+  document.documentElement.dataset.loginUnlocked = unlocked ? "true" : "false";
+}
+
+function playScanBeep() {
+  if (typeof window === "undefined") return;
+
+  const audio = new Audio(scanSound);
+  audio.volume = 0.9;
+  void audio.play().catch(() => {});
+}
+
+function MobileCameraScreen({ onAwardPoints }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const scanTimerRef = useRef(null);
+  const nativeDetectorRef = useRef(null);
+  const lastDetectedRef = useRef("");
+  const lastSentRef = useRef("");
+  const scanCooldownRef = useRef(false);
+  const scanFinishedRef = useRef(false);
+  const scanAttemptIdRef = useRef(0);
+  const scanAttemptTimeoutRef = useRef(null);
+  const scanRearmTimeoutRef = useRef(null);
+  const scanSoundCooldownUntilRef = useRef(0);
+  const [error, setError] = useState(null);
+  const [detectedValue, setDetectedValue] = useState("");
+  const [loginStatus, setLoginStatus] = useState("ready to scan");
+  const onAwardPointsRef = useRef(onAwardPoints);
 
   useEffect(() => {
-    window.history.scrollRestoration = "manual";
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollLeft = 0;
+    onAwardPointsRef.current = onAwardPoints;
+  }, [onAwardPoints]);
+
+  const clearScanAttemptTimeout = () => {
+    if (scanAttemptTimeoutRef.current) {
+      clearTimeout(scanAttemptTimeoutRef.current);
+      scanAttemptTimeoutRef.current = null;
     }
+  };
+
+  const clearScanRearmTimeout = () => {
+    if (scanRearmTimeoutRef.current) {
+      clearTimeout(scanRearmTimeoutRef.current);
+      scanRearmTimeoutRef.current = null;
+    }
+  };
+
+  const stopScanning = () => {
+    if (scanTimerRef.current) {
+      clearInterval(scanTimerRef.current);
+      scanTimerRef.current = null;
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+  };
+
+  const releaseScanLock = () => {
+    clearScanAttemptTimeout();
+    clearScanRearmTimeout();
+    scanAttemptIdRef.current = 0;
+    lastDetectedRef.current = "";
+    lastSentRef.current = "";
+    scanCooldownRef.current = false;
+    scanFinishedRef.current = false;
+    setDetectedValue("");
+    setLoginStatus("ready to scan");
+  };
+
+  const finishSuccessfulScan = (value) => {
+    if (scanFinishedRef.current) return;
+    scanFinishedRef.current = true;
+    scanCooldownRef.current = true;
+    setLoginStatus("unlocked");
+    setDetectedValue("");
+
+    try {
+      onAwardPointsRef.current?.(value);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      clearScanAttemptTimeout();
+      clearScanRearmTimeout();
+      scanRearmTimeoutRef.current = window.setTimeout(async () => {
+        try {
+          await remove(ref(db, "scan"));
+        } catch {
+          // Keep scanner usable even if Firebase reset fails.
+        } finally {
+          scanAttemptIdRef.current = 0;
+          scanFinishedRef.current = false;
+          scanCooldownRef.current = false;
+          setDetectedValue("");
+          setLoginStatus("ready to scan");
+        }
+      }, 1200);
+    }
+  };
+
+  const handleScanFailure = () => {
+    setLoginStatus("login service unavailable");
+    releaseScanLock();
+  };
+
+  const triggerScanSound = () => {
+    const now = Date.now();
+    if (now < scanSoundCooldownUntilRef.current) return;
+    scanSoundCooldownUntilRef.current = now + 5000;
+    playScanBeep();
+  };
+
+  const startUnlockAttempt = (value) => {
+    const attemptId = ++scanAttemptIdRef.current;
+    scanCooldownRef.current = true;
+    setLoginStatus("unlocking");
+    triggerScanSound();
+
+    clearScanAttemptTimeout();
+    scanAttemptTimeoutRef.current = window.setTimeout(() => {
+      if (scanAttemptIdRef.current !== attemptId || scanFinishedRef.current) {
+        return;
+      }
+
+      handleScanFailure();
+    }, 6000);
+
+    set(ref(db, "scan"), { code: value, at: Date.now() })
+      .then(() => {
+        if (scanAttemptIdRef.current !== attemptId || scanFinishedRef.current) {
+          return;
+        }
+
+        finishSuccessfulScan(value);
+      })
+      .catch(() => {
+        if (scanAttemptIdRef.current !== attemptId || scanFinishedRef.current) {
+          return;
+        }
+
+        handleScanFailure();
+      });
+  };
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    const previousBackground = root.style.getPropertyValue("--background");
+    const previousBodyBackground = body.style.background;
+
+    root.style.setProperty("--background", "#08111f");
+    body.style.background = "linear-gradient(180deg, #08111f 0%, #0b1729 55%, #050814 100%)";
+
+    const themeColor = document.querySelector('meta[name="theme-color"]');
+    const previousThemeColor = themeColor?.getAttribute("content");
+    if (themeColor) {
+      themeColor.setAttribute("content", "#08111f");
+    }
+
+    return () => {
+      root.style.setProperty("--background", previousBackground || "#26448c");
+      body.style.background = previousBodyBackground;
+      if (themeColor && previousThemeColor) {
+        themeColor.setAttribute("content", previousThemeColor);
+      }
+    };
   }, []);
+
+  useEffect(() => {
+    const startCamera = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+        });
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (err) {
+        setError("Camera access denied or unavailable");
+        console.error(err);
+      }
+    };
+
+    startCamera();
+
+    return () => {
+      clearScanAttemptTimeout();
+      clearScanRearmTimeout();
+      stopScanning();
+    };
+  }, []);
+
+  useEffect(() => {
+    const handlePageExit = () => {
+      remove(ref(db, "scan")).catch(() => {});
+    };
+
+    window.addEventListener("pagehide", handlePageExit);
+    window.addEventListener("beforeunload", handlePageExit);
+
+    return () => {
+      window.removeEventListener("pagehide", handlePageExit);
+      window.removeEventListener("beforeunload", handlePageExit);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!videoRef.current) return;
+
+    const nativeDetector = typeof window !== "undefined" && "BarcodeDetector" in window
+      ? new window.BarcodeDetector({ formats: ["qr_code"] })
+      : null;
+
+    nativeDetectorRef.current = nativeDetector;
+
+    const scanFrame = async () => {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas || video.readyState < 2) return;
+
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      if (!width || !height) return;
+
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) return;
+
+      context.drawImage(video, 0, 0, width, height);
+
+      if (nativeDetectorRef.current) {
+        try {
+          const codes = await nativeDetectorRef.current.detect(video);
+          if (codes?.length) {
+            const value = codes[0].rawValue || "";
+            if (value && value !== lastDetectedRef.current) {
+              lastDetectedRef.current = value;
+              setDetectedValue(value);
+              if (!scanCooldownRef.current) {
+                setLoginStatus("scanning qr");
+              }
+
+              if (!scanCooldownRef.current && value !== lastSentRef.current) {
+                lastSentRef.current = value;
+                startUnlockAttempt(value);
+              }
+            }
+            return;
+          }
+        } catch {
+          // Fallback to jsQR below.
+        }
+      }
+
+      const imageData = context.getImageData(0, 0, width, height);
+      const code = jsQR(imageData.data, width, height, { inversionAttempts: "attemptBoth" });
+      if (code?.data && code.data !== lastDetectedRef.current) {
+        lastDetectedRef.current = code.data;
+        setDetectedValue(code.data);
+        if (!scanCooldownRef.current) {
+          setLoginStatus("scanning qr");
+        }
+
+        if (!scanCooldownRef.current && code.data !== lastSentRef.current) {
+          lastSentRef.current = code.data;
+          startUnlockAttempt(code.data);
+        }
+        return;
+      }
+
+      if (!code?.data && !scanCooldownRef.current && (lastDetectedRef.current || lastSentRef.current)) {
+        releaseScanLock();
+      }
+    };
+
+    scanTimerRef.current = window.setInterval(scanFrame, 250);
+
+    return () => {
+      if (scanTimerRef.current) {
+        clearInterval(scanTimerRef.current);
+        scanTimerRef.current = null;
+      }
+    };
+  }, [onAwardPoints]);
+
+  return (
+    <div className="relative h-[100dvh] w-screen overflow-hidden bg-[#08111f] text-white select-none">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(77,171,255,0.3),_transparent_38%),radial-gradient(circle_at_bottom,_rgba(253,119,39,0.25),_transparent_34%),linear-gradient(180deg,#08111f_0%,#0b1729_55%,#050814_100%)]" />
+      <div className="absolute inset-0 opacity-[0.12] bg-[linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:28px_28px]" />
+
+      <div className="relative z-10 flex h-full flex-col px-4 pt-4 pb-4 sm:pt-0 sm:pb-8">
+        <div className="absolute left-4 top-4 z-20 flex items-center gap-3 rounded-full border border-white/10 bg-black/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/70 shadow-[0_0_24px_rgba(0,0,0,0.25)]">
+          <Camera className="h-4 w-4" />
+          Scan mode
+        </div>
+
+        <div className="flex flex-1 items-start justify-center pt-16 sm:items-center sm:pt-0">
+          <div className="relative h-[84dvh] max-h-[820px] w-[100vw] max-w-3xl sm:h-[76vh] sm:max-h-[700px]">
+            <div className="absolute -inset-6 rounded-[2rem] border border-white/10 bg-white/5 blur-2xl" />
+            <div className="relative overflow-hidden rounded-[2rem] border border-white/15 bg-white/5 shadow-[0_30px_80px_rgba(0,0,0,0.45)] backdrop-blur-md">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(150,212,229,0.22),_transparent_45%)]" />
+              <div className="relative flex h-full flex-col items-center justify-between px-6 py-7 sm:py-6">
+                <div className="relative flex flex-1 w-full items-center justify-center">
+                  <div className="relative z-20 flex flex-col items-center gap-3">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="h-[30rem] w-[20rem] max-w-full rounded-xl border-2 border-[#fd7727] object-cover shadow-[0_0_30px_rgba(253,119,39,0.6)] sm:h-[34rem] sm:w-[22rem]"
+                    />
+                    <div className="absolute inset-x-0 top-1/2 h-px bg-gradient-to-r from-transparent via-[#fd7727] to-transparent shadow-[0_0_20px_rgba(253,119,39,0.9)]" style={{ animation: "pulse 2.2s ease-in-out infinite" }} />
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-5 text-center sm:space-y-4 sm:pt-6">
+                  <h1 className="font-['Tilt_Warp',sans-serif] text-2xl tracking-tight text-white">
+                    Center and scan the QR code
+                  </h1>
+                  <p className="mx-auto max-w-xs text-sm leading-5 text-white/72">
+                    {error || "For SHOWCASE purpose only, use desktop version for the full solution"}
+                  </p>
+                  <div className={`mx-auto inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] shadow-[0_0_24px_rgba(0,0,0,0.2)] ${loginStatus === "unlocked" ? "border-emerald-300/40 bg-emerald-400/20 text-emerald-100" : loginStatus === "login service unavailable" ? "border-rose-300/40 bg-rose-400/20 text-rose-100" : loginStatus === "unlocking" ? "border-orange-300/40 bg-orange-400/20 text-orange-100 animate-pulse" : "border-white/10 bg-white/10 text-white/80"}`}>
+                    <span className={`h-2 w-2 rounded-full ${loginStatus === "unlocked" ? "bg-emerald-300" : loginStatus === "login service unavailable" ? "bg-rose-300" : loginStatus === "unlocking" ? "bg-orange-300" : "bg-cyan-200"}`} />
+                    {loginStatus}
+                  </div>
+                </div>
+                <canvas ref={canvasRef} className="hidden" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const MemoHomePageView = memo(HomePageView);
+const MemoRewardsPage = memo(RewardsPage);
+const MemoScanPage = memo(ScanPage);
+const MemoMapPage = memo(MapPage);
+const MemoProfilePage = memo(ProfilePage);
+
+export default function Layout() {
+  const scrollContainerRef = useRef(null);
+  const cursorRef = useRef(null);
+  const cursorFrameRef = useRef(0);
+  const cursorTargetRef = useRef({ x: 0, y: 0 });
+  const cupResetTimeoutRef = useRef(null);
+  const desktopBootAtRef = useRef(0);
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 768px)").matches;
+  });
+  const [activeIndex, setActiveIndex] = useState(0);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
   const [notification, setNotification] = useState("");
   const [points, setPoints] = useState(0);
   const [totalEarnedPoints, setTotalEarnedPoints] = useState(0);
+  const [cupFillPoints, setCupFillPoints] = useState(0);
   const [cups, setCups] = useState(0);
   const [claimedItems, setClaimedItems] = useState([]);
   const [showBasket, setShowBasket] = useState(false);
@@ -35,13 +392,135 @@ export default function Layout() {
   const showBasketRef = useRef(false);
   const showReceiptRef = useRef(false);
   const childModalRef = useRef(false);
-  const onChildModalChange = (open) => { childModalRef.current = open; };
   const [lang, setLang] = useState("en");
+  const [loginStatus, setLoginStatus] = useState("ready to scan");
+  const isLoggedInRef = useRef(isLoggedIn);
+  const activeIndexRef = useRef(activeIndex);
 
   const langRef = useRef(lang);
   useEffect(() => { langRef.current = lang; }, [lang]);
+  useEffect(() => { isLoggedInRef.current = isLoggedIn; }, [isLoggedIn]);
+  useEffect(() => { activeIndexRef.current = activeIndex; }, [activeIndex]);
 
-  const handleClaimReceipt = () => {
+  const updateCursorElement = useCallback(() => {
+    cursorFrameRef.current = 0;
+    const cursor = cursorRef.current;
+    if (!cursor) return;
+
+    const { x, y } = cursorTargetRef.current;
+    cursor.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
+  }, []);
+
+  useEffect(() => {
+    if (isMobile) {
+      if (cursorRef.current) {
+        cursorRef.current.style.opacity = "0";
+      }
+      return undefined;
+    }
+
+    const handlePointerMove = (event) => {
+      cursorTargetRef.current = { x: event.clientX, y: event.clientY };
+
+      if (!cursorFrameRef.current) {
+        cursorFrameRef.current = window.requestAnimationFrame(updateCursorElement);
+      }
+
+      if (cursorRef.current) {
+        cursorRef.current.style.opacity = "1";
+      }
+    };
+
+    const handlePointerLeave = () => {
+      if (cursorRef.current) {
+        cursorRef.current.style.opacity = "0";
+      }
+    };
+
+    document.body.style.cursor = "none";
+    document.documentElement.style.cursor = "none";
+    window.addEventListener("mousemove", handlePointerMove);
+    window.addEventListener("mouseenter", handlePointerMove);
+    window.addEventListener("mouseleave", handlePointerLeave);
+
+    return () => {
+      document.body.style.cursor = "";
+      document.documentElement.style.cursor = "";
+      window.removeEventListener("mousemove", handlePointerMove);
+      window.removeEventListener("mouseenter", handlePointerMove);
+      window.removeEventListener("mouseleave", handlePointerLeave);
+      if (cursorFrameRef.current) {
+        window.cancelAnimationFrame(cursorFrameRef.current);
+        cursorFrameRef.current = 0;
+      }
+    };
+  }, [isMobile, updateCursorElement]);
+
+  const awardScanPoints = () => {
+    setPoints((p) => {
+      const newPoints = p + 3000;
+      if (Math.floor(newPoints / 1000) > Math.floor(p / 1000)) {
+        setNotification(translations[langRef.current].notifGoalReached);
+      } else {
+        setNotification(translations[langRef.current].notifAwesome);
+      }
+      setShowNotification(true);
+      setTimeout(() => setShowNotification(false), 3000);
+      return newPoints;
+    });
+    setTotalEarnedPoints((prev) => prev + 3000);
+    setCups((c) => c + 1);
+
+    setCupFillPoints((current) => {
+      const next = current + 3000;
+      if (cupResetTimeoutRef.current) {
+        clearTimeout(cupResetTimeoutRef.current);
+        cupResetTimeoutRef.current = null;
+      }
+
+      if (next >= 10000) {
+        cupResetTimeoutRef.current = window.setTimeout(() => {
+          setCupFillPoints(0);
+          cupResetTimeoutRef.current = null;
+        }, 900);
+        return 10000;
+      }
+
+      return next;
+    });
+  };
+
+  const handleManualLogin = async () => {
+    try {
+      await remove(ref(db, "scan"));
+    } catch {
+      // Manual login should still work even if Firebase reset fails.
+    }
+
+    setLoginStatus("unlocked");
+    setIsLoggedIn(true);
+    setLoginUnlockedDom(true);
+  };
+
+  const handleRewardClaim = useCallback((cost, id, name) => {
+    setPoints((p) => Math.max(0, p - cost));
+    setClaimedItems((prev) => [...prev, { name, points: cost }]);
+    setNotification(translations[langRef.current].notifRewardClaimed(cost));
+    setShowNotification(true);
+    setTimeout(() => setShowNotification(false), 3000);
+  }, []);
+
+  const handleChildModalChange = useCallback((open) => {
+    childModalRef.current = open;
+  }, []);
+
+  const handleReceiptClose = useCallback(() => {
+    showReceiptRef.current = false;
+    setShowReceipt(false);
+    setClaimedItems([]);
+  }, []);
+
+  const handleClaimReceipt = useCallback(() => {
     receiptItemsRef.current = [...claimedItems];
     showBasketRef.current = false;
     setShowBasket(false);
@@ -49,25 +528,91 @@ export default function Layout() {
     showReceiptRef.current = true;
     setShowReceipt(true);
     setTimeout(() => setPrintingDone(true), 3500);
-  };
-
-  const handleReceiptClose = () => {
-    showReceiptRef.current = false;
-    setShowReceipt(false);
-    setClaimedItems([]);
-  };
-
-  const t = translations[lang];
+  }, [claimedItems]);
 
   const messageKeys = ["notifScan", "notifNewStation", "notifDoublePoints", "notifFreeBeer", "notifClean"];
 
   useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 768px)");
+    const handleChange = (event) => setIsMobile(event.matches);
+
+    setIsMobile(mediaQuery.matches);
+    mediaQuery.addEventListener("change", handleChange);
+
+    return () => {
+      mediaQuery.removeEventListener("change", handleChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isMobile) return;
+
+    window.history.scrollRestoration = "manual";
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft = 0;
+    }
+  }, [isMobile]);
+
+  useEffect(() => {
+    if (isMobile) return;
+
+    let active = true;
+    const SCAN_TTL_MS = 15000;
+    desktopBootAtRef.current = Date.now();
+    setLoginUnlockedDom(false);
+    setIsLoggedIn(false);
+
+    remove(ref(db, "scan")).catch(() => {});
+
+    const unsubscribe = onValue(
+      ref(db, "scan"),
+      (snapshot) => {
+        if (!active) return;
+        const state = snapshot.val();
+        if (!state) return;
+
+        if (state.at && (Date.now() - state.at > SCAN_TTL_MS || state.at < desktopBootAtRef.current)) {
+          remove(ref(db, "scan")).catch(() => {});
+          return;
+        }
+
+        if (!isLoggedInRef.current) {
+          if (state.code) setLoginStatus("unlocked");
+          setIsLoggedIn(true);
+          setLoginUnlockedDom(true);
+          remove(ref(db, "scan")).catch(() => {});
+          return;
+        }
+
+        if (activeIndexRef.current === 2) {
+          awardScanPoints();
+          setLoginStatus("scan accepted");
+        } else {
+          setLoginStatus("scan ignored");
+        }
+        remove(ref(db, "scan")).catch(() => {});
+      },
+      () => {
+        if (active) setLoginStatus("login offline");
+      }
+    );
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [isMobile]);
+
+  useEffect(() => {
+    if (isMobile) return;
+
     let i = 0;
     let idleTimeout;
 
     const handleIdle = () => {
       if (showBasketRef.current || showReceiptRef.current || childModalRef.current) return;
       setIsLoggedIn(false);
+      setLoginUnlockedDom(false);
       if (scrollContainerRef.current) {
         scrollContainerRef.current.scrollTo({ left: 0, behavior: "smooth" });
         setActiveIndex(0);
@@ -79,8 +624,8 @@ export default function Layout() {
       idleTimeout = setTimeout(handleIdle, 30000);
     };
 
-    const events = ['mousemove', 'mousedown', 'touchstart', 'touchmove', 'keydown', 'scroll', 'click'];
-    events.forEach(evt => document.addEventListener(evt, resetIdleTimer, true));
+    const events = ["mousemove", "mousedown", "touchstart", "touchmove", "keydown", "scroll", "click"];
+    events.forEach((evt) => document.addEventListener(evt, resetIdleTimer, true));
     resetIdleTimer();
 
     setTimeout(() => {
@@ -99,9 +644,25 @@ export default function Layout() {
     return () => {
       clearInterval(interval);
       clearTimeout(idleTimeout);
-      events.forEach(evt => document.removeEventListener(evt, resetIdleTimer, true));
+      events.forEach((evt) => document.removeEventListener(evt, resetIdleTimer, true));
     };
+  }, [isMobile]);
+
+  useEffect(() => () => {
+    if (cupResetTimeoutRef.current) {
+      clearTimeout(cupResetTimeoutRef.current);
+    }
   }, []);
+
+  const t = translations[lang];
+
+  if (isMobile) {
+    return (
+      <MobileCameraScreen
+        onAwardPoints={awardScanPoints}
+      />
+    );
+  }
 
   const handleScroll = () => {
     if (scrollContainerRef.current) {
@@ -115,27 +676,17 @@ export default function Layout() {
   const scrollToSection = (index) => {
     if (scrollContainerRef.current) {
       const width = scrollContainerRef.current.clientWidth;
-      scrollContainerRef.current.scrollTo({ left: width * index, behavior: "smooth" });
+      scrollContainerRef.current.scrollLeft = width * index;
+      setActiveIndex(index);
     }
   };
 
   return (
     <LangProvider lang={lang}>
-      <div className="h-screen w-screen bg-[#26448c] text-white font-['Geist',sans-serif] relative overflow-hidden select-none">
-        {!isLoggedIn && (
-          <LoginPage onLogin={() => {
-            setIsLoggedIn(true);
-            setActiveIndex(0);
-            if (scrollContainerRef.current) scrollContainerRef.current.scrollTo({ left: 0 });
-          }} />
-        )}
+      <div className={`h-screen w-screen bg-[#26448c] text-white font-['Geist',sans-serif] relative overflow-hidden select-none ${!isMobile ? "custom-cursor-hide" : ""}`}>
+        {!isLoggedIn && <LoginPage loginStatus={loginStatus} onManualLogin={handleManualLogin} />}
 
-        <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden bg-[#26448c]">
-          <div className="absolute -top-[20%] -left-[10%] w-[80vw] h-[80vw] bg-[#96d4e5] rounded-full mix-blend-screen filter blur-[120px] opacity-50" style={{ animation: 'float1 22s ease-in-out infinite' }} />
-          <div className="absolute top-[30%] -right-[20%] w-[60vw] h-[60vw] bg-[#96d4e5] rounded-full mix-blend-screen filter blur-[100px] opacity-35" style={{ animation: 'float2 17s ease-in-out infinite' }} />
-          <div className="absolute -bottom-[20%] left-[10%] w-[70vw] h-[70vw] bg-[#96d4e5] rounded-full mix-blend-screen filter blur-[130px] opacity-30" style={{ animation: 'float3 28s ease-in-out infinite' }} />
-          <div className="absolute inset-0 opacity-[0.06] mix-blend-overlay bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
-        </div>
+        <AnimatedGradientBackground />
 
         <header className="absolute top-0 left-0 right-0 z-20 px-8 xl:px-16 pt-7 pb-5 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -144,20 +695,20 @@ export default function Layout() {
             </h1>
           </div>
           <div className="flex items-center gap-4">
-            <button onClick={() => setLang(l => l === "en" ? "da" : "en")} className="w-9 h-7 flex-shrink-0">
+            <button onClick={() => setLang((l) => (l === "en" ? "da" : "en"))} className="w-9 h-7 flex-shrink-0">
               {lang === "en" ? (
                 <svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg" className="w-full h-full rounded-sm">
-                  <rect width="60" height="40" fill="#012169"/>
-                  <path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" strokeWidth="8"/>
-                  <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" strokeWidth="5"/>
-                  <path d="M30,0 V40 M0,20 H60" stroke="#fff" strokeWidth="13"/>
-                  <path d="M30,0 V40 M0,20 H60" stroke="#C8102E" strokeWidth="8"/>
+                  <rect width="60" height="40" fill="#012169" />
+                  <path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" strokeWidth="8" />
+                  <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" strokeWidth="5" />
+                  <path d="M30,0 V40 M0,20 H60" stroke="#fff" strokeWidth="13" />
+                  <path d="M30,0 V40 M0,20 H60" stroke="#C8102E" strokeWidth="8" />
                 </svg>
               ) : (
                 <svg viewBox="0 0 37 28" xmlns="http://www.w3.org/2000/svg" className="w-full h-full rounded-sm">
-                  <rect width="37" height="28" fill="#C60C30"/>
-                  <rect x="11" width="5" height="28" fill="#fff"/>
-                  <rect y="11" width="37" height="6" fill="#fff"/>
+                  <rect width="37" height="28" fill="#C60C30" />
+                  <rect x="11" width="5" height="28" fill="#fff" />
+                  <rect y="11" width="37" height="6" fill="#fff" />
                 </svg>
               )}
             </button>
@@ -175,40 +726,40 @@ export default function Layout() {
               </button>
               {showBasket && (
                 <>
-                <div className="fixed inset-0 z-40" onClick={() => { showBasketRef.current = false; setShowBasket(false); }} />
-                <div className="absolute top-14 right-0 w-72 bg-[#2f3034] backdrop-blur-3xl border border-white/20 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] z-50 overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-                    <span className="font-['Geist',sans-serif] text-xs uppercase tracking-widest text-white/60">{t.shoppingCart}</span>
-                    <button onClick={() => { showBasketRef.current = false; setShowBasket(false); }}>
-                      <X className="w-4 h-4 text-white/40 hover:text-white/80" />
-                    </button>
+                  <div className="fixed inset-0 z-40" onClick={() => { showBasketRef.current = false; setShowBasket(false); }} />
+                  <div className="absolute top-14 right-0 w-72 bg-[#2f3034] backdrop-blur-3xl border border-white/20 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] z-50 overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+                      <span className="font-['Geist',sans-serif] text-xs uppercase tracking-widest text-white/60">{t.shoppingCart}</span>
+                      <button onClick={() => { showBasketRef.current = false; setShowBasket(false); }}>
+                        <X className="w-4 h-4 text-white/40 hover:text-white/80" />
+                      </button>
+                    </div>
+                    {claimedItems.length === 0 ? (
+                      <p className="font-['Geist',sans-serif] text-sm text-white/40 text-center py-6">{t.nothingClaimed}</p>
+                    ) : (
+                      <ul className="max-h-60 overflow-y-auto hide-scrollbar divide-y divide-white/5">
+                        {claimedItems.map((item, i) => (
+                          <li key={i} className="flex items-center justify-between px-4 py-2.5">
+                            <span className="font-['Geist',sans-serif] text-sm text-white/90">{item.name}</span>
+                            <span className="font-['Tilt_Warp',sans-serif] text-xs text-[#fd7727]">-{item.points} pts</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="px-4 py-3 border-t border-white/10">
+                      <button
+                        onClick={claimedItems.length > 0 ? handleClaimReceipt : undefined}
+                        disabled={claimedItems.length === 0}
+                        className={`w-full py-2 rounded-full font-['Geist',sans-serif] text-xs font-bold uppercase tracking-widest transition-all ${
+                          claimedItems.length > 0
+                            ? "bg-[#fd7727] text-white"
+                            : "bg-white/5 text-white/30 border-2 border-dashed border-white/20 cursor-not-allowed"
+                        }`}
+                      >
+                        {t.claim}
+                      </button>
+                    </div>
                   </div>
-                  {claimedItems.length === 0 ? (
-                    <p className="font-['Geist',sans-serif] text-sm text-white/40 text-center py-6">{t.nothingClaimed}</p>
-                  ) : (
-                    <ul className="max-h-60 overflow-y-auto hide-scrollbar divide-y divide-white/5">
-                      {claimedItems.map((item, i) => (
-                        <li key={i} className="flex items-center justify-between px-4 py-2.5">
-                          <span className="font-['Geist',sans-serif] text-sm text-white/90">{item.name}</span>
-                          <span className="font-['Tilt_Warp',sans-serif] text-xs text-[#fd7727]">-{item.points} pts</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <div className="px-4 py-3 border-t border-white/10">
-                    <button
-                      onClick={claimedItems.length > 0 ? handleClaimReceipt : undefined}
-                      disabled={claimedItems.length === 0}
-                      className={`w-full py-2 rounded-full font-['Geist',sans-serif] text-xs font-bold uppercase tracking-widest transition-all ${
-                        claimedItems.length > 0
-                          ? "bg-[#fd7727] text-white"
-                          : "bg-white/5 text-white/30 border-2 border-dashed border-white/20 cursor-not-allowed"
-                      }`}
-                    >
-                      {t.claim}
-                    </button>
-                  </div>
-                </div>
                 </>
               )}
             </div>
@@ -224,48 +775,29 @@ export default function Layout() {
             onScroll={handleScroll}
             className="w-full h-full flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory hide-scrollbar scroll-smooth"
           >
-            <div className="w-full flex-none h-full snap-center">
-              <HomePageView points={points} cups={cups} totalEarned={totalEarnedPoints} />
+            <div className="w-full flex-none h-full snap-center" style={{ contentVisibility: "auto", containIntrinsicSize: "100dvh 100vw" }}>
+              <MemoHomePageView points={points} cups={cups} totalEarned={totalEarnedPoints} cupFillPoints={cupFillPoints} />
             </div>
-            <div className="w-full flex-none h-full snap-center">
-              <RewardsPage
+            <div className="w-full flex-none h-full snap-center" style={{ contentVisibility: "visible" }}>
+              <MemoRewardsPage
                 points={points}
-                onModalChange={onChildModalChange}
-                onClaim={(cost, id, name) => {
-                  setPoints(p => Math.max(0, p - cost));
-                  setClaimedItems(prev => [...prev, { name, points: cost }]);
-                  setNotification(translations[langRef.current].notifRewardClaimed(cost));
-                  setShowNotification(true);
-                  setTimeout(() => setShowNotification(false), 3000);
-                }}
+                onModalChange={handleChildModalChange}
+                onClaim={handleRewardClaim}
               />
             </div>
-            <div className="w-full flex-none h-full snap-center">
-              <ScanPage
+            <div className="w-full flex-none h-full snap-center" style={{ contentVisibility: "auto", containIntrinsicSize: "100dvh 100vw" }}>
+              <MemoScanPage
                 points={points}
                 cups={cups}
-                onScan={() => {
-                  setPoints(p => {
-                    const newPoints = p + 250;
-                    if (Math.floor(newPoints / 1000) > Math.floor(p / 1000)) {
-                      setNotification(translations[langRef.current].notifGoalReached);
-                    } else {
-                      setNotification(translations[langRef.current].notifAwesome);
-                    }
-                    setShowNotification(true);
-                    setTimeout(() => setShowNotification(false), 3000);
-                    return newPoints;
-                  });
-                  setTotalEarnedPoints(prev => prev + 250);
-                  setCups(c => c + 1);
-                }}
+                cupFillPoints={cupFillPoints}
+                onScan={awardScanPoints}
               />
             </div>
-            <div className="w-full flex-none h-full snap-center">
-              <MapPage isActive={activeIndex === 3} />
+            <div className="w-full flex-none h-full snap-center" style={{ contentVisibility: "auto", containIntrinsicSize: "100dvh 100vw" }}>
+              <MemoMapPage isActive={activeIndex === 3} />
             </div>
-            <div className="w-full flex-none h-full snap-center">
-              <ProfilePage onModalChange={onChildModalChange} />
+            <div className="w-full flex-none h-full snap-center" style={{ contentVisibility: "auto", containIntrinsicSize: "100dvh 100vw" }}>
+              <MemoProfilePage onModalChange={handleChildModalChange} />
             </div>
           </div>
         </main>
@@ -277,7 +809,7 @@ export default function Layout() {
               <img
                 src={mascot}
                 alt="Sunny Mascot"
-                className={`w-full h-full object-contain relative z-20 drop-shadow-[0_20px_30px_rgba(0,0,0,0.6)] transition-transform duration-[2000ms] ${showNotification ? 'rotate-[-5deg] scale-110' : 'rotate-12 scale-100'}`}
+                className={`w-full h-full object-contain relative z-20 drop-shadow-[0_20px_30px_rgba(0,0,0,0.6)] transition-transform duration-[2000ms] ${showNotification ? "rotate-[-5deg] scale-110" : "rotate-12 scale-100"}`}
               />
             </div>
           </div>
@@ -299,9 +831,9 @@ export default function Layout() {
               </button>
 
               <div className="relative flex flex-col items-center justify-center flex-1 h-full group">
-                <button onClick={() => scrollToSection(2)} className="relative flex flex-col items-center justify-center w-13 h-13 xl:w-16 xl:h-16 rounded-full transition-all duration-300 bg-white/10 mx-auto" style={{width: '3.25rem', height: '3.25rem'}}>
+                <button onClick={() => scrollToSection(2)} className="relative flex flex-col items-center justify-center w-13 h-13 xl:w-16 xl:h-16 rounded-full transition-all duration-300 bg-white/10 mx-auto" style={{ width: "3.25rem", height: "3.25rem" }}>
                   {activeIndex === 2 && <div className="absolute inset-0 bg-white/10 rounded-full shadow-inner scale-110 transition-all duration-500" />}
-                  <QrCode className={`relative z-10 w-6 h-6 xl:w-7 xl:h-7 transition-all duration-300 ${activeIndex === 2 ? 'text-[#fd7727] scale-110' : 'text-white/80'}`} />
+                  <QrCode className={`relative z-10 w-6 h-6 xl:w-7 xl:h-7 transition-all duration-300 ${activeIndex === 2 ? "text-[#fd7727] scale-110" : "text-white/80"}`} />
                 </button>
               </div>
 
@@ -322,9 +854,9 @@ export default function Layout() {
 
         {showReceipt && (
           <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-md flex items-end justify-center" onClick={handleReceiptClose}>
-            <div className="w-full max-w-sm relative" onClick={e => e.stopPropagation()} style={{ animation: 'receiptSlideUp 0.5s cubic-bezier(0.34,1.4,0.64,1) forwards' }}>
-              <div className="relative bg-[#f0ede8] text-[#1a1a2e] shadow-[0_-20px_60px_rgba(0,0,0,0.5)]"
-                style={{ clipPath: 'polygon(0 12px,2% 0,4% 12px,6% 0,8% 12px,10% 0,12% 12px,14% 0,16% 12px,18% 0,20% 12px,22% 0,24% 12px,26% 0,28% 12px,30% 0,32% 12px,34% 0,36% 12px,38% 0,40% 12px,42% 0,44% 12px,46% 0,48% 12px,50% 0,52% 12px,54% 0,56% 12px,58% 0,60% 12px,62% 0,64% 12px,66% 0,68% 12px,70% 0,72% 12px,74% 0,76% 12px,78% 0,80% 12px,82% 0,84% 12px,86% 0,88% 12px,90% 0,92% 12px,94% 0,96% 12px,98% 0,100% 12px,100% 100%,0 100%)' }}
+            <div className="w-full max-w-sm relative receipt-slide-up" onClick={(e) => e.stopPropagation()}>
+              <div className="relative bg-[#f0ede8] text-[#1a1a2e] shadow-[0_-20px_60px_rgba(0,0,0,0.5)] receipt-print"
+                style={{ clipPath: "polygon(0 12px,2% 0,4% 12px,6% 0,8% 12px,10% 0,12% 12px,14% 0,16% 12px,18% 0,20% 12px,22% 0,24% 12px,26% 0,28% 12px,30% 0,32% 12px,34% 0,36% 12px,38% 0,40% 12px,42% 0,44% 12px,46% 0,48% 12px,50% 0,52% 12px,54% 0,56% 12px,58% 0,60% 12px,62% 0,64% 12px,66% 0,68% 12px,70% 0,72% 12px,74% 0,76% 12px,78% 0,80% 12px,82% 0,84% 12px,86% 0,88% 12px,90% 0,92% 12px,94% 0,96% 12px,98% 0,100% 12px,100% 100%,0 100%)" }}
               >
                 <div className="px-7 pt-10 pb-8">
                   <div className="text-center mb-4">
@@ -386,50 +918,15 @@ export default function Layout() {
           </div>
         )}
 
-        <style>{`
-          @keyframes float1 {
-            0%   { transform: translate(0, 0) scale(1); }
-            15%  { transform: translate(35%, 55%) scale(1.2); }
-            35%  { transform: translate(65%, 20%) scale(1.4); }
-            55%  { transform: translate(25%, 75%) scale(1.1); }
-            75%  { transform: translate(55%, 40%) scale(1.35); }
-            100% { transform: translate(0, 0) scale(1); }
-          }
-          @keyframes float2 {
-            0%   { transform: translate(0, 0) scale(1); }
-            20%  { transform: translate(-45%, -35%) scale(0.82); }
-            42%  { transform: translate(-70%, -55%) scale(0.7); }
-            65%  { transform: translate(-25%, -65%) scale(0.88); }
-            82%  { transform: translate(-58%, -20%) scale(0.76); }
-            100% { transform: translate(0, 0) scale(1); }
-          }
-          @keyframes float3 {
-            0%   { transform: translate(0, 0) scale(1); }
-            25%  { transform: translate(55%, -45%) scale(1.15); }
-            50%  { transform: translate(80%, -65%) scale(1.3); }
-            72%  { transform: translate(35%, -25%) scale(0.9); }
-            88%  { transform: translate(65%, -50%) scale(1.2); }
-            100% { transform: translate(0, 0) scale(1); }
-          }
-          .hide-scrollbar::-webkit-scrollbar { display: none; }
-          .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-          @keyframes printProgress {
-            from { width: 0%; }
-            to   { width: 100%; }
-          }
-          @keyframes waveRotate {
-            from { transform: rotate(0deg); }
-            to   { transform: rotate(360deg); }
-          }
-          @keyframes printDot {
-            0%, 100% { opacity: 0.2; transform: translateY(0); }
-            50%       { opacity: 1;   transform: translateY(-3px); }
-          }
-          @keyframes receiptSlideUp {
-            from { transform: translateY(100%); opacity: 0; }
-            to   { transform: translateY(0);    opacity: 1; }
-          }
-        `}</style>
+        {!isMobile && (
+          <div
+            ref={cursorRef}
+            className="fixed left-0 top-0 z-[10000] pointer-events-none"
+            style={{ transform: "translate3d(0, 0, 0) translate(-50%, -50%)", opacity: 0 }}
+          >
+            <div className="h-9 w-9 rounded-full border-2 border-white/70 bg-transparent backdrop-blur-0" />
+          </div>
+        )}
       </div>
     </LangProvider>
   );

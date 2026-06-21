@@ -1,18 +1,12 @@
 import { QrCode } from "lucide-react";
 import { useLang } from "../translations";
 
-export default function LoginPage({ onLogin }) {
+export default function LoginPage({ loginStatus, onManualLogin }) {
   const t = useLang();
-  const handleInteraction = (e) => {
-    e.stopPropagation();
-    if (onLogin) onLogin();
-  };
 
   return (
     <div
-      className="absolute inset-0 z-[9999] bg-[#26448c] flex flex-col items-center justify-center cursor-pointer text-white overflow-hidden touch-none"
-      onClick={handleInteraction}
-      onPointerDown={handleInteraction}
+      className="absolute inset-0 z-[9999] bg-[#26448c] flex flex-col items-center justify-center text-white overflow-hidden touch-none"
     >
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden bg-[#26448c]">
         <div className="absolute -top-[20%] -left-[10%] w-[80vw] h-[80vw] bg-[#96d4e5] rounded-full mix-blend-screen filter blur-[90px] opacity-65 animate-pulse" />
@@ -28,11 +22,16 @@ export default function LoginPage({ onLogin }) {
           {t.loginTagline}
         </p>
 
-        <div className="w-32 h-32 md:w-48 md:h-48 rounded-full p-[6px] bg-gradient-to-br from-[#96d4e5] via-white/60 to-[#26448c]/40 animate-pulse mb-10 shadow-[0_0_40px_rgba(150,212,229,0.25)]">
+        <button
+          type="button"
+          onClick={onManualLogin}
+          className="w-32 h-32 md:w-48 md:h-48 rounded-full p-[6px] bg-gradient-to-br from-[#96d4e5] via-white/60 to-[#26448c]/40 animate-pulse mb-10 shadow-[0_0_40px_rgba(150,212,229,0.25)] transition-transform duration-300 active:scale-95"
+          aria-label="Manual login"
+        >
           <div className="w-full h-full rounded-full bg-[#516ab8] flex items-center justify-center">
             <QrCode className="w-12 h-12 md:w-16 md:h-16 text-white/90" />
           </div>
-        </div>
+        </button>
 
         <h2 className="font-['Tilt_Warp',sans-serif] text-3xl md:text-5xl text-white mb-6 mt-6">
           {t.scanWristband}
