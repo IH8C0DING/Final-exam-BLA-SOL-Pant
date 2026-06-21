@@ -504,6 +504,7 @@ export default function Layout() {
 
   const handleRewardClaim = useCallback((cost, id, name) => {
     setPoints((p) => Math.max(0, p - cost));
+    setCupFillPoints((c) => Math.max(0, c - cost));
     setClaimedItems((prev) => [...prev, { name, points: cost }]);
     setNotification(translations[langRef.current].notifRewardClaimed(cost));
     setShowNotification(true);
